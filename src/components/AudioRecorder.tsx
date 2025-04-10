@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Mic, MicOff, Play, Square, Save, Headphones } from 'lucide-react';
+import { Mic, Play, Square, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import AudioVisualizer from './AudioVisualizer';
 import { formatTime } from '@/utils/audioUtils';
@@ -226,8 +226,10 @@ const AudioRecorder: React.FC = () => {
             try {
               // Disconnect first to avoid errors from multiple connections
               audioSourceRef.current.disconnect();
-            } catch (e) {
+            } catch (_) {
               // Ignore disconnection errors
+              console.log('Error disconnecting audio source', _);
+              
             }
             audioSourceRef.current.connect(analyserRef.current);
             audioSourceRef.current.connect(audioContextRef.current.destination);

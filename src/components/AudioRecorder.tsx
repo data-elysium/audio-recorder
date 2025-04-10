@@ -20,6 +20,7 @@ const AudioRecorder: React.FC = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const timerRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   
   useEffect(() => {
     return () => {
@@ -133,6 +134,12 @@ const AudioRecorder: React.FC = () => {
         audioRef.current.pause();
         setIsPlaying(false);
       } else {
+        // Reset audio element for replay
+        if (audioRef.current.srcObject) {
+          audioRef.current.srcObject = null;
+        }
+        audioRef.current.src = audioURL;
+        
         // Check if audio context exists and is in correct state
         if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
           // Create new audio context if it doesn't exist or is closed
@@ -147,8 +154,11 @@ const AudioRecorder: React.FC = () => {
           
           analyserRef.current = analyser;
           
-          // Connect audio element to analyzer
+          // Create and store the audio source
           const source = audioContext.createMediaElementSource(audioRef.current);
+          audioSourceRef.current = source;
+          
+          // Connect audio element to analyzer
           source.connect(analyser);
           source.connect(audioContext.destination);
         } else if (audioContextRef.current.state === 'suspended') {
@@ -164,10 +174,17 @@ const AudioRecorder: React.FC = () => {
             analyser.maxDecibels = -10;
             analyserRef.current = analyser;
             
-            // Connect audio element to analyzer
-            const source = audioContextRef.current.createMediaElementSource(audioRef.current);
-            source.connect(analyser);
-            source.connect(audioContextRef.current.destination);
+            // Use existing source or create a new one if needed
+            if (!audioSourceRef.current) {
+              const source = audioContextRef.current.createMediaElementSource(audioRef.current);
+              audioSourceRef.current = source;
+              source.connect(analyser);
+              source.connect(audioContextRef.current.destination);
+            } else {
+              // Reconnect existing source
+              audioSourceRef.current.connect(analyser);
+              audioSourceRef.current.connect(audioContextRef.current.destination);
+            }
           }
         }
         
@@ -180,10 +197,41 @@ const AudioRecorder: React.FC = () => {
           analyser.maxDecibels = -10;
           analyserRef.current = analyser;
           
-          // Connect audio element to analyzer if not already connected
-          const source = audioContextRef.current.createMediaElementSource(audioRef.current);
-          source.connect(analyser);
-          source.connect(audioContextRef.current.destination);
+          // Use existing source or create a new one if needed
+          if (!audioSourceRef.current) {
+            const source = audioContextRef.current.createMediaElementSource(audioRef.current);
+            audioSourceRef.current = source;
+            source.connect(analyser);
+            source.connect(audioContextRef.current.destination);
+          } else {
+            // Reconnect existing source
+            audioSourceRef.current.connect(analyser);
+            audioSourceRef.current.connect(audioContextRef.current.destination);
+          }
+        } else if (analyserRef.current && audioContextRef.current) {
+          // Stop any tracks if srcObject exists
+          if (audioRef.current.srcObject) {
+            const tracks = (audioRef.current.srcObject as MediaStream).getTracks();
+            tracks.forEach(track => track.stop());
+          }
+          
+          // Use existing source or create a new one if needed
+          if (!audioSourceRef.current) {
+            const source = audioContextRef.current.createMediaElementSource(audioRef.current);
+            audioSourceRef.current = source;
+            source.connect(analyserRef.current);
+            source.connect(audioContextRef.current.destination);
+          } else {
+            // Ensure existing source is connected
+            try {
+              // Disconnect first to avoid errors from multiple connections
+              audioSourceRef.current.disconnect();
+            } catch (e) {
+              // Ignore disconnection errors
+            }
+            audioSourceRef.current.connect(analyserRef.current);
+            audioSourceRef.current.connect(audioContextRef.current.destination);
+          }
         }
         
         audioRef.current.play();
